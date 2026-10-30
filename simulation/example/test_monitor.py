@@ -19,7 +19,6 @@ sample = SingleActionEvalSample.at(
 )
 
 #print(sample.metadata["transcript"])
-m
 #monitor = monitor_expensive() #baseline with all edits classified 
 monitor = monitor_original() #standard two layer reasoning in auto mode production 
 

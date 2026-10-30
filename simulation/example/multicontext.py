@@ -28,12 +28,12 @@ def main() -> None:
     parser.add_argument(
         "--yaml",
         type=Path,
-        default=Path(__file__).with_name("multi-context.yaml"),
+        default=Path(__file__).with_name("mctest3_1.yaml"),
         help="Path to a YAML file containing one Transcript",
     )
     parser.add_argument("--monitor", choices=MONITORS, default="original")
-    parser.add_argument("--context", type=int, default=2)
-    parser.add_argument("--message", type=int, default=21)
+    parser.add_argument("--context", type=int, default=0)
+    parser.add_argument("--message", type=int, default=1)
     args = parser.parse_args()
 
     raw = yaml.safe_load(args.yaml.read_text(encoding="utf-8"))
