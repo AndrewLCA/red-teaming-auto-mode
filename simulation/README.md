@@ -11,6 +11,7 @@ This package provides:
 ## Features
 
 - Built on Inspect - has transcript viewer, max concurrency limits, auto retries
+  - Inspect seems to be referring to [Inspect](https://inspect.aisi.org.uk/), an open source framework for large langauge model evaluations.
 - Auto mode classifier API which is customisable with sys prompt patches
 - Supports compactions
 - Investigator and Capability agents can have extra tools/affordances

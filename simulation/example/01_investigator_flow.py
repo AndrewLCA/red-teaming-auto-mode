@@ -50,6 +50,8 @@ from auto_mode_eval.monitor import (
     monitor_results,
 )
 
+from auto_mode_eval.model_utils import resolve_model
+
 _DATA = yaml.safe_load((Path(__file__).parent / "data.yaml").read_text())
 
 
@@ -127,6 +129,15 @@ def spec(
     tasks = []
     for m in models:
         config = m.config.model_copy(update={"reasoning_effort": reasoning_effort}) if reasoning_effort else m.config
+
+        investigator = resolve_model(m) if m.model_args else m.model
+
+        # print("INVESTIGATOR:", investigator)
+        # if hasattr(investigator, "api"):
+        #     print("API:", type(investigator.api).__name__)
+        #     print("RESPONSES API:", investigator.api.responses_api)
+        #     print("BASE URL:", investigator.api.base_url)
+
         for cell in cells:
             tasks.append(
                 FlowTask(
@@ -137,7 +148,8 @@ def spec(
                         dataset=_dataset(m.name, seed, classification_budget),
                         grader=grader_model,
                     ),
-                    model=m.model,
+                    # model=m.model,
+                    model = investigator,
                     config=config,
                     epochs=epochs,
                     message_limit=message_limit,

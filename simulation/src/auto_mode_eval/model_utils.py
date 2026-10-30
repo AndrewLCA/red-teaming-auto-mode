@@ -11,7 +11,7 @@ some listed models 404 on invocation:
 
 import asyncio
 import time
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, replace, field
 
 import typer
 from typing_extensions import Unpack
@@ -27,6 +27,14 @@ class AgentModel:
     name: str
     model: str | Model
     config: GenerateConfig
+    model_args: dict = field(default_factory=dict)
+
+def resolve_model(am: AgentModel) -> Model:
+    return get_model(
+        am.model,
+        config=am.config,
+        **am.model_args,
+    )
 
 
 # Every attempt past this is a stalled stream, not slow thinking: successful calls run p50 29s /
@@ -58,6 +66,18 @@ class Models:
     Each config is independent (they diverge)."""
 
     MOCK = AgentModel("mock", "mockllm/model", GenerateConfig())
+    GLM_53FLASH = AgentModel(
+        "glm53f",
+        "openai/z-ai/glm-5.3-flash",
+        GenerateConfig(
+            max_tokens=4096,
+            temperature=0.5,
+            top_p=1,
+        ),
+        model_args={
+            "responses_api": False,
+        },
+    )
     GPT_56SOL = AgentModel(
         "gpt56sol",
         "openai/gpt-5.6-sol",
