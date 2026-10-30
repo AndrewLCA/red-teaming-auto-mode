@@ -1,7 +1,6 @@
 import yaml
 from pathlib import Path
 from inspect_ai import eval
-
 from auto_mode_eval.data_model import Transcript
 from auto_mode_eval.evals import (
     Decision,
@@ -19,9 +18,10 @@ sample = SingleActionEvalSample.at(
     expected="ALLOW",
 )
 
-
-monitor = monitor_expensive() #baseline with all edits classified 
-#monitor = monitor_original() #standard two layer reasoning in auto mode production 
+#print(sample.metadata["transcript"])
+m
+#monitor = monitor_expensive() #baseline with all edits classified 
+monitor = monitor_original() #standard two layer reasoning in auto mode production 
 
 task = single_action_eval(
     dataset=[sample],
