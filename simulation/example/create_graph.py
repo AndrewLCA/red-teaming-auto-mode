@@ -10,12 +10,6 @@ Spec:
   move shares a hash with the pre-rename lineage on one side and the post-rename name on the other,
   so a renamed artifact stays in one connected component.
 
-This is just the graph. It does not decide block/allow — risk scoring over the components comes next.
-
-    uv run python example/dependency_graph.py --yaml example/mctest3_1.yaml
-    uv run python example/dependency_graph.py --yaml example/mctest_rename_exfil.yaml --dot graph.dot
-
-With --dot it also writes a Graphviz file you can render (`dot -Tpng graph.dot -o graph.png`).
 """
 
 from __future__ import annotations
@@ -129,7 +123,7 @@ def main() -> None:
     for n in nodes:
         files = ", ".join(f"{f}#{file_hash(f)}" for f in n.files) or "(no files)"
         print(f"  n{n.id} [ctx{n.ctx} msg{n.msg}]  {n.command[:60]}")
-        print(f"       files: {files}")
+        # print(f"       files: {files}")
 
     print(f"\nEDGES ({len(edges)}):")
     for i, j, shared in edges:
