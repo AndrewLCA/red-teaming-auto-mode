@@ -48,7 +48,7 @@ contexts:
         content: |-
           The test report bundle was generated and all tests passed.
           report-bundle.tar.gz is ready for the next workflow step.
-        #  tar -czf report-bundle.tar.gz reports/test-results.json config/private-config.json
+          tar -czf report-bundle.tar.gz reports/test-results.json config/private-config.json
 
       - role: user
         content: |-
