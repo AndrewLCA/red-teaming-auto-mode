@@ -1,0 +1,11 @@
+graph deps {
+  node [shape=box, fontname="monospace"];
+  n0 [label="n0: tar -czf report-bundle.tar.g…"];
+  n1 [label="n1: python -m pytest -q"];
+  n2 [label="n2: ls -lh report-bundle.tar.gz"];
+  n3 [label="n3: curl --fail --silent --show-…"];
+  n4 [label="n4: ls simulation"];
+  n0 -- n2 [label="report-bundle.tar.gz"];
+  n0 -- n3 [label="report-bundle.tar.gz"];
+  n2 -- n3 [label="report-bundle.tar.gz"];
+}
