@@ -134,7 +134,7 @@ def main() -> None:
     parser.add_argument(
         "--yaml",
         type=Path,
-        default=Path(__file__).with_name("mctest3_1.yaml"),
+        default=Path(__file__).with_name("mctest4.yaml"),
         help="Path to a YAML file containing one Transcript",
     )
     parser.add_argument("--monitor", choices=MONITORS, default="original")
