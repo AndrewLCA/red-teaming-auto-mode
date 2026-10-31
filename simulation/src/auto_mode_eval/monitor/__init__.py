@@ -104,6 +104,17 @@ def monitor_original(model: str | Model = _MODEL, cwd: Path | None = None) -> Au
     )
     return replace(monitor, classify_compactions=False)
 
+def dependentGraphMonitor(
+    model: str | Model = _MODEL,
+    pastToolCalls: tuple[str, ...] = (),
+) -> AutoModeMonitor:
+    monitor = monitor_original(model)
+
+    return replace(
+        monitor,
+        pastToolCalls=pastToolCalls,
+    )
+
 
 def monitor_original_severity(model: str | Model = _MODEL, cwd: Path | None = None) -> AutoModeMonitor:
     """**Original severity** — deployed 2026-08-13: neither stage rules. Both grade the harm
