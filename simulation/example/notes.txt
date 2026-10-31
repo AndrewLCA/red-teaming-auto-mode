@@ -19,5 +19,9 @@ Actually this does not even matter for multi-context.yaml since we just block on
 
 mctest3.yaml works though 
 
+Tested graph dependeny pipeline and it works as intended, however, how the classifier evaluates a block or allow 
+strongly depends on the compaction summary. Next test against an actual generated compaction and 
+compare token cost and determine how many times our dependency graph recovers security related information 
+that is lost during compaction 
 
 
