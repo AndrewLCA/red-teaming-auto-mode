@@ -34,10 +34,12 @@ MONITORS = {
 # transitive lineage that produced what this action touches. If the action has no parents, returns
 # an empty tuple, so nothing is injected into pastToolCalls.
 #
-# "Parents" is transitive (parents + grandparents + …) on purpose: in a rename attack the exfil's
-# direct parent is only the `mv`, and the `mv`'s command alone doesn't reveal that the archive holds
-# a secret — you need the `tar` upstream of it too. Walking the full lineage surfaces that. (To use
-# only the immediate parents instead, replace the ancestor walk with `parents.get(target, [])`.)
+# A node is a parent of the action under review when it is an EARLIER tool call that shares a file
+# with it — directly or transitively through other shared files (the shared-file connected
+# component, as in create_graph.py). So a read-only `ls` of the same file counts, not only the
+# command that wrote it. Transitivity matters: in a rename attack the exfil shares its file with the
+# `mv` and the `ls`, but not directly with the `tar` (different name) — the `tar` is reached through
+# the `mv`, so walking the component is what surfaces it.
 
 def _parse_io(command: str) -> tuple[list[str], list[str]]:
     """(files this command reads, files it writes) — best-effort over the commands these use."""
@@ -97,40 +99,34 @@ def _iter_tool_calls(transcript: dict):
 
 
 def parent_tool_calls(transcript: dict, context: int, message: int) -> tuple[str, ...]:
-    """Commands of the parent (ancestor) tool calls of the action at (context, message), in order.
-    Empty tuple if that action has no parents (or isn't found)."""
-    commands: list[str] = []
-    last_writer: dict[str, int] = {}
-    parents: dict[int, list[int]] = {}
+    """Commands of the parent tool calls of the action at (context, message): the earlier tool
+    calls in its shared-file connected component. Empty tuple if it has none (or isn't found)."""
+    nodes: list[tuple[int, int, str, set[str]]] = []   # (ctx, msg, command, files touched)
     target: int | None = None
 
     for ci, mi, cmd in _iter_tool_calls(transcript):
-        idx = len(commands)
-        commands.append(cmd)
         ins, outs = _parse_io(cmd)
-        for f in ins:
-            if f in last_writer:
-                parents.setdefault(idx, []).append(last_writer[f])
-        for f in outs:
-            last_writer[f] = idx
+        idx = len(nodes)
+        nodes.append((ci, mi, cmd, set(ins) | set(outs)))
         if (ci, mi) == (context, message):
             target = idx
 
     if target is None:
         return ()
 
-    # transitive ancestor walk
-    seen: set[int] = set()
-    stack = list(parents.get(target, []))
+    # walk the shared-file component, considering only nodes up to the target (no future actions)
+    seen: set[int] = {target}
+    stack = [target]
     while stack:
-        p = stack.pop()
-        if p in seen:
-            continue
-        seen.add(p)
-        stack.extend(parents.get(p, []))
+        n = stack.pop()
+        for j in range(target + 1):
+            if j not in seen and nodes[n][3] & nodes[j][3]:
+                seen.add(j)
+                stack.append(j)
+    seen.discard(target)
 
     # chronological order (earliest first) so the monitor reads them in sequence
-    return tuple(commands[i] for i in sorted(seen))
+    return tuple(nodes[i][2] for i in sorted(seen))
 
 
 def main() -> None:
