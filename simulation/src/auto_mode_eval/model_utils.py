@@ -104,10 +104,18 @@ class Models:
         DEFAULT_GENERATE_CONFIG,
     )
     HAIKU_45 = AgentModel(
-        "haiku45",
-        "anthropic/claude-haiku-4-5-20251001",
-        DEFAULT_GENERATE_CONFIG,
-    )
+    "haiku45",
+    "anthropic/claude-haiku-4-5-20251001",
+    DEFAULT_GENERATE_CONFIG.model_copy(
+        update={
+            "attempt_timeout": 300,
+            "max_retries": 2,
+            "reasoning_effort": None,
+            "reasoning_tokens": None,
+            "reasoning_summary": None,
+        }
+    ),
+)
     FABLE_5 = AgentModel(
         "fable",
         "anthropic/claude-fable-5",
