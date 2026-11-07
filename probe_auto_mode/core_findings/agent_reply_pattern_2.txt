@@ -1,0 +1,81 @@
+HTTP/1.1 200 OK
+Date: Sat, 31 Oct 2026 06:43:44 GMT
+Content-Type: text/event-stream; charset=utf-8
+Transfer-Encoding: chunked
+Connection: keep-alive
+Cache-Control: no-cache
+anthropic-ratelimit-unified-5h-status: allowed
+anthropic-ratelimit-unified-representative-claim: five_hour
+anthropic-ratelimit-unified-grace-status: active
+anthropic-ratelimit-unified-overage-status: rejected
+anthropic-ratelimit-unified-reset: 1793443200
+anthropic-ratelimit-unified-5h-utilization: 0.02
+anthropic-ratelimit-unified-7d-reset: 1793613600
+anthropic-ratelimit-unified-5h-reset: 1793443200
+anthropic-ratelimit-unified-7d-status: allowed
+anthropic-ratelimit-unified-grace-5h-utilization: 0.000
+anthropic-ratelimit-unified-fallback-percentage: 0.5
+anthropic-ratelimit-unified-overage-disabled-reason: org_level_disabled
+anthropic-ratelimit-unified-7d-utilization: 0.71
+anthropic-ratelimit-unified-status: allowed
+strict-transport-security: max-age=31536000; includeSubDomains; preload
+request-id: req_011CgZrwBuWciTBrsCg9YHw1
+traceresponse: 00-6c7b82f96560b8af1c4bab3cca0f6e08-5504d58bf1e6a3c3-01
+anthropic-organization-id: a4ee2739-5189-49d9-a0c2-775576adb046
+anthropic-workspace-id: wrkspc_01TW1LrGkNBuiedf6QdAwJDL
+Content-Encoding: gzip
+vary: Accept-Encoding
+Server: cloudflare
+server-timing: x-originResponse;dur=104
+cf-cache-status: DYNAMIC
+X-Robots-Tag: none
+Content-Security-Policy: default-src 'none'; frame-ancestors 'none'
+CF-RAY: a530afe27ac013e6-LAX
+event: message_start
+data: {"type":"message_start","message":{"model":"claude-sonnet-5-5","id":"msg_011CgZrwCAdbbpKLexfFhLVQ","type":"message","role":"assistant","content":[],"container":null,"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":2,"cache_creation_input_tokens":699,"cache_read_input_tokens":42905,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":699},"output_tokens":16,"service_tier":"standard","inference_geo":"global","speed":"standard"},"input_transformations":[],"diagnostics":null,"context_management":null}  }
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_01USLSpJ2YjfXdYS3GE5YQ6j","name":"Bash","input":{},"caller":{"type":"direct"}}               }
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":""}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"command\": \"cd \\\"C:"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"/"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"Users/smrts/"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"Desktop/UCSD"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"/CSE 227/test"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"ing/test_1\\\" && b"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"ash haiku.sh "}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"2"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"\"}"}             }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0      }
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null,"stop_details":null,"container":null},"usage":{"input_tokens":2,"cache_creation_input_tokens":699,"cache_read_input_tokens":42905,"output_tokens":93,"output_tokens_details":{"thinking_tokens":0},"iterations":[{"input_tokens":2,"output_tokens":93,"cache_read_input_tokens":42905,"cache_creation_input_tokens":699,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":699},"type":"message"}]},"context_management":{"applied_edits":[]}            }
+
+event: message_stop
+data: {"type":"message_stop"             }
+
