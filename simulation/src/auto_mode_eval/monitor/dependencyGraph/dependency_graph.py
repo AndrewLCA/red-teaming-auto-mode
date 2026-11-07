@@ -1,5 +1,4 @@
 import argparse
-import hashlib
 import json
 import ntpath
 import posixpath
@@ -9,8 +8,64 @@ from collections import defaultdict
 from pathlib import Path
 
 
-def fileHash(name):
-    return hashlib.sha256(name.encode("utf-8")).hexdigest()[:8]
+def extractPrecompactionNodes(path):
+    nodes = {}
+    Boundary = None
+
+    with open(path, "r", encoding="utf-8-sig") as f:
+        for lineNum, line in enumerate(f, 1):
+            if not line.strip():
+                continue
+
+            record = json.loads(line)
+            if record.get("type") == "system" and record.get("subtype") == "compact_boundary":
+                Boundary = lineNum
+                break
+
+            recordType = record.get("type")
+            if recordType not in ("assistant", "user"):
+                continue
+
+            message = record.get("message") or {}
+            content = message.get("content", [])
+            if not isinstance(content, list):
+                continue
+
+            for block in content:
+                if not isinstance(block, dict):
+                    continue
+
+                if recordType == "assistant" and block.get("type") == "tool_use":
+                    toolId = block.get("id")
+                    if not toolId or toolId in nodes:
+                        continue
+
+                    nodes[toolId] = {
+                        "id": toolId,
+                        "toolName": block.get("name"),
+                        "input": block.get("input", {}),
+                        "output": None,
+                        "sequence": len(nodes) + 1,
+                        "timestamp": record.get("timestamp"),
+                        "callLine": lineNum,
+                        "resultLine": None,
+                    }
+
+                elif recordType == "user" and block.get("type") == "tool_result":
+                    toolId = block.get("tool_use_id")
+                    if toolId not in nodes:
+                        continue
+                    node = nodes[toolId]
+                    if node["resultLine"] is None:
+                        node["output"] = block.get("content")
+                        node["resultLine"] = lineNum
+                        node["isError"] = block.get("is_error", False)
+
+    if Boundary is None:
+        raise ValueError("No compaction boundary found in transcript")
+
+    return list(nodes.values()), Boundary
+
 
 def normalizeFile(name, root=None):
     name = str(name).strip().strip('"\'').lstrip("@").replace("\\", "/")
@@ -39,12 +94,12 @@ def inferRoot(nodes):
 
 
 def extractBashFiles(command):
-    """Best-effort file tokens in shell commands, not a full shell parser."""
     if not isinstance(command, str):
         return []
     command = re.split(r"<<\s*['\"]?\w+", command, maxsplit=1)[0]
     parts = re.split(r"\s*(?:&&|\|\||[;|])\s*", command)
     files = []
+
     for part in parts:
         try:
             tokens = shlex.split(part, posix=True)
@@ -76,31 +131,31 @@ def extractFiles(node):
         path = inputs.get("file_path") or inputs.get("notebook_path")
         if path:
             files.append(path)
-
     elif tool in ("Bash", "bash", "Shell", "PowerShell"):
         files.extend(extractBashFiles(inputs.get("command", "")))
-
     elif tool in ("Glob", "Grep"):
         if inputs.get("path"):
             files.append(inputs["path"])
-
     return files
 
 
 def buildGraph(rawNodes):
     root = inferRoot(rawNodes)
     nodes = []
+
     for raw in sorted(rawNodes, key=lambda n: n.get("sequence", 0)):
         files = []
         for name in extractFiles(raw):
             normalized = normalizeFile(name, root)
             if normalized and normalized not in files:
                 files.append(normalized)
+
         nodes.append({
             "index": len(nodes),
             "toolName": raw.get("toolName", raw.get("tool_name")),
-            "files": files
+            "files": files,
         })
+
     byFile = defaultdict(list)
     edges = []
     for i, node in enumerate(nodes):
@@ -109,7 +164,7 @@ def buildGraph(rawNodes):
                 edges.append({
                     "parent": earlierIndex,
                     "child": i,
-                    "file": name
+                    "file": name,
                 })
             byFile[name].append(i)
     return nodes, edges, root
@@ -129,6 +184,7 @@ def components(nodes, edges):
         b = find(edge["child"])
         if a != b:
             parent[b] = a
+
     groups = defaultdict(list)
     for i in range(len(nodes)):
         groups[find(i)].append(i)
@@ -136,37 +192,47 @@ def components(nodes, edges):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--json", type=Path, required=True, help="Parsed tool_nodes.json")
-    parser.add_argument("--output", type=Path, help="Optional JSON output containing nodes and edges")
+    parser = argparse.ArgumentParser(description="Extract pre-compaction tool calls and build a shared-file dependency graph")
+    parser.add_argument("transcript", type=Path, help="Original Claude Code .jsonl transcript")
+    parser.add_argument("-o", "--output", type=Path, default=Path("dependency_graph.json"))
+    parser.add_argument("--nodes-output", type=Path, help="Optionally save complete extracted tool nodes")
     args = parser.parse_args()
 
-    rawNodes = json.loads(args.json.read_text(encoding="utf-8-sig"))
-    if not isinstance(rawNodes, list):
-        parser.error("Input must be a JSON array of tool-call nodes")
+    rawNodes, Boundary = extractPrecompactionNodes(args.transcript)
     nodes, edges, root = buildGraph(rawNodes)
     groups = components(nodes, edges)
 
-    print(f"Input: {args.json}")
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps({"nodes": nodes, "edges": edges, "components": groups}, indent=2), encoding="utf-8")
+
+    if args.nodes_output:
+        args.nodes_output.parent.mkdir(parents=True, exist_ok=True)
+        args.nodes_output.write_text(json.dumps(rawNodes, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    matched = sum(1 for node in rawNodes if node["resultLine"] is not None)
+    print(f"Compaction boundary: line {Boundary}")
+    print(f"Unique pre-compaction tool calls: {len(rawNodes)}")
+    print(f"Matched tool results: {matched}")
+    print(f"Unmatched tool calls: {len(rawNodes) - matched}")
     print(f"Path root: {root or '(none inferred)'}")
     print(f"Nodes: {len(nodes)}")
     print(f"File-overlap edges: {len(edges)}")
     print(f"Connected components: {len(groups)}")
-    unrecognized = sorted({n.get("toolName", n.get("tool_name")) for n in rawNodes if n.get("toolName", n.get("tool_name")) not in {"Read", "Write", "Edit", "NotebookEdit", "Bash", "bash", "Shell", "Glob", "Grep"}})
+
+    supported = {"Read", "Write", "Edit", "NotebookEdit", "Bash", "bash", "Shell", "PowerShell", "Glob", "Grep"}
+    unrecognized = sorted({n.get("toolName") for n in rawNodes if n.get("toolName") and n.get("toolName") not in supported})
     if unrecognized:
         print(f"Unsupported tool types (no file extraction): {unrecognized}")
-    
+
     print("\nNODES:")
     for node in nodes:
         print(f"  n{node['index']}: {node['toolName']} files={node['files']}")
     print("\nEDGES:")
     for edge in edges:
-        print(f"  {edge['parent']} -> {edge['child']} via {edge['file']}")
-    if args.output:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(json.dumps({"nodes": nodes, "edges": edges, "components": groups}, indent=2), encoding="utf-8")
-        print(f"\nWrote {args.output}")
-
+        print(f"  n{edge['parent']} -> n{edge['child']} via {edge['file']}")
+    print(f"\nWrote {args.output}")
+    if args.nodes_output:
+        print(f"Wrote {args.nodes_output}")
 
 if __name__ == "__main__":
     main()

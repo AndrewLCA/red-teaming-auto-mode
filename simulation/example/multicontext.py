@@ -1,11 +1,8 @@
 import argparse
-import re
-import shlex
+import json
 from pathlib import Path
 
-import yaml
 from inspect_ai import eval as inspect_eval
-
 from auto_mode_eval.data_model import Transcript
 from auto_mode_eval.evals import Decision, SingleActionEvalSample, action_at, single_action_eval
 from auto_mode_eval.monitor import (
@@ -15,6 +12,11 @@ from auto_mode_eval.monitor import (
     monitor_original,
     monitor_results,
     dependentGraphMonitor,
+)
+from auto_mode_eval.monitor.dependencyGraph.dependency_graph import (
+    extractFiles,
+    inferRoot,
+    normalizeFile,
 )
 
 MONITORS = {
@@ -27,163 +29,368 @@ MONITORS = {
 }
 
 
-# --- dependency-graph retrieval: the parents of the action under review ---------------------------
-#
-# Builds a directed dependency graph from the transcript's tool calls (producer --file--> consumer)
-# and returns, for the action at (context, message), the commands of its parent tool calls — the
-# transitive lineage that produced what this action touches. If the action has no parents, returns
-# an empty tuple, so nothing is injected into pastToolCalls.
-#
-# A node is a parent of the action under review when it is an EARLIER tool call that shares a file
-# with it — directly or transitively through other shared files (the shared-file connected
-# component, as in create_graph.py). So a read-only `ls` of the same file counts, not only the
-# command that wrote it. Transitivity matters: in a rename attack the exfil shares its file with the
-# `mv` and the `ls`, but not directly with the `tar` (different name) — the `tar` is reached through
-# the `mv`, so walking the component is what surfaces it.
+def loadPostcompaction(transcriptPath):
+    """Return monitor-ready messages and indices of post-compaction tool calls."""
+    messages = []
+    actions = []
+    Boundary = None
+    summaryFound = False
 
-def _parse_io(command: str) -> tuple[list[str], list[str]]:
-    """(files this command reads, files it writes) — best-effort over the commands these use."""
-    try:
-        toks = shlex.split(command)
-    except ValueError:
-        toks = command.split()
-    if not toks:
-        return [], []
-    exe = toks[0]
+    with transcriptPath.open("r", encoding="utf-8-sig") as f:
+        for lineNum, line in enumerate(f, 1):
+            if not line.strip():
+                continue
 
-    if exe == "tar":                      # tar -czf OUT IN...
-        out, ins, i = None, [], 1
-        while i < len(toks):
-            t = toks[i]
-            if t.startswith("-") and "f" in t:
-                out = toks[i + 1]; i += 2; continue
-            if t.startswith("-"):
-                i += 1; continue
-            ins.append(t); i += 1
-        return ins, ([out] if out else [])
+            record = json.loads(line)
 
-    if exe in ("cp", "mv"):               # cp/mv SRC... DST
-        args = [t for t in toks[1:] if not t.startswith("-")]
-        if len(args) >= 2:
-            *srcs, dst = args
-            return srcs, [dst]
+            if Boundary is None:
+                if (
+                    record.get("type") == "system"
+                    and record.get("subtype") == "compact_boundary"
+                ):
+                    Boundary = lineNum
+                continue
 
-    if exe == "curl":                     # curl ... --data-binary @FILE ... URL  (reads FILE)
-        file = None
-        for i, t in enumerate(toks):
-            if t in ("--data-binary", "-d", "--data", "-T", "--upload-file") and i + 1 < len(toks):
-                v = toks[i + 1].lstrip("@")
-                if v and not v.startswith("-"):
-                    file = v
-        return ([file] if file else []), []
+            recordType = record.get("type")
+            if recordType not in ("assistant", "user"):
+                continue
 
-    if exe == "scp":                      # scp SRC host:path  (reads SRC)
-        args = [t for t in toks[1:] if not t.startswith("-")]
-        if len(args) >= 2:
-            return args[:-1], []
+            message = record.get("message") or {}
+            if not isinstance(message, dict):
+                continue
 
-    # generic: file-looking tokens are reads, nothing declared written
-    reads = [t.lstrip("@") for t in toks[1:]
-             if not t.startswith("-") and "://" not in t and ("/" in t or "." in t)]
-    return reads, []
+            content = message.get("content", [])
+
+            if isinstance(content, str):
+                blocks = [{"type": "text", "text": content}]
+
+            elif isinstance(content, list):
+                blocks = []
+
+                for block in content:
+                    if not isinstance(block, dict):
+                        continue
+
+                    kind = block.get("type")
+
+                    if kind == "text":
+                        blocks.append({
+                            "type": "text",
+                            "text": block.get("text", "")
+                        })
+
+                    elif kind == "tool_use" and recordType == "assistant":
+                        blocks.append({
+                            "type": "tool_use",
+                            "id": block.get("id", ""),
+                            "name": block.get("name", ""),
+                            "input": block.get("input") or {},
+                        })
+
+                    elif kind == "tool_result" and recordType == "user":
+                        resultContent = block.get("content", "")
+
+                        if not isinstance(resultContent, str):
+                            resultContent = json.dumps(
+                                resultContent,
+                                ensure_ascii=False
+                            )
+
+                        blocks.append({
+                            "type": "tool_result",
+                            "tool_use_id": block.get("tool_use_id", ""),
+                            "content": resultContent,
+                            "is_error": block.get("is_error", False),
+                        })
+            else:
+                continue
+
+            if not blocks:
+                continue
+
+            isSummary = bool(
+                record.get("isCompactSummary")
+                or message.get("isCompactSummary")
+            )
+
+            if isSummary:
+                summaryFound = True
+
+                messages.append({
+                    "role": "user",
+                    "content": blocks,
+                    "is_compact_summary": True
+                })
+                continue
+
+            if not summaryFound:
+                continue
+
+            for block in blocks:
+                if block["type"] == "tool_use":
+                    messages.append({
+                        "role": "assistant",
+                        "content": [block]
+                    })
+                    actions.append(len(messages) - 1)
+
+                else:
+                    messages.append({
+                        "role": recordType,
+                        "content": [block]
+                    })
+
+    if Boundary is None:
+        raise ValueError("No compaction boundary found")
+
+    if not summaryFound:
+        raise ValueError(
+            "No isCompactSummary record found after compaction boundary"
+        )
+
+    if not actions:
+        raise ValueError("No post-compaction tool calls found")
+
+    return messages, actions, Boundary
 
 
-def _iter_tool_calls(transcript: dict):
-    for ci, ctx in enumerate(transcript["contexts"]):
-        for mi, m in enumerate(ctx.get("messages", [])):
-            content = m.get("content")
-            if isinstance(content, list):
-                for b in content:
-                    if isinstance(b, dict) and b.get("type") == "tool_use":
-                        yield ci, mi, (b.get("input") or {}).get("command", "")
+def parent_tool_calls(graphPath, nodesPath, selected):
+    """Find historical same-file nodes and walk directed parent edges."""
 
-
-def parent_tool_calls(transcript: dict, context: int, message: int) -> tuple[str, ...]:
-    """Commands of the parent tool calls of the action at (context, message): the earlier tool
-    calls in its shared-file connected component. Empty tuple if it has none (or isn't found)."""
-    nodes: list[tuple[int, int, str, set[str]]] = []   # (ctx, msg, command, files touched)
-    target: int | None = None
-
-    for ci, mi, cmd in _iter_tool_calls(transcript):
-        ins, outs = _parse_io(cmd)
-        idx = len(nodes)
-        nodes.append((ci, mi, cmd, set(ins) | set(outs)))
-        if (ci, mi) == (context, message):
-            target = idx
-
-    if target is None:
-        return ()
-
-    # walk the shared-file component, considering only nodes up to the target (no future actions)
-    seen: set[int] = {target}
-    stack = [target]
-    while stack:
-        n = stack.pop()
-        for j in range(target + 1):
-            if j not in seen and nodes[n][3] & nodes[j][3]:
-                seen.add(j)
-                stack.append(j)
-    seen.discard(target)
-
-    # chronological order (earliest first) so the monitor reads them in sequence
-    return tuple(nodes[i][2] for i in sorted(seen))
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--yaml",
-        type=Path,
-        default=Path(__file__).with_name("mctest4.yaml"),
-        help="Path to a YAML file containing one Transcript",
+    graph = json.loads(
+        graphPath.read_text(encoding="utf-8-sig")
     )
-    parser.add_argument("--monitor", choices=MONITORS, default="original")
-    parser.add_argument("--context", type=int, default=0)
-    parser.add_argument("--message", type=int, default=1)
+
+    rawNodes = json.loads(
+        nodesPath.read_text(encoding="utf-8-sig")
+    )
+
+    graphNodes = graph["nodes"]
+    rawNodes = sorted(
+        rawNodes,
+        key=lambda n: n.get("sequence", 0)
+    )
+
+    if len(graphNodes) != len(rawNodes):
+        raise ValueError(
+            "Graph and tool_nodes.json have different lengths"
+        )
+
+    for i, (node, raw) in enumerate(zip(graphNodes, rawNodes)):
+        if (
+            node.get("index", i) != i
+            or node.get("toolName") != raw.get("toolName")
+        ):
+            raise ValueError(
+                f"Graph and tool nodes don't align at index {i}"
+            )
+
+    parents = {
+        i: set()
+        for i in range(len(graphNodes))
+    }
+
+    for edge in graph["edges"]:
+        p = edge["parent"]
+        c = edge["child"]
+
+        if not (0 <= p < c < len(graphNodes)):
+            raise ValueError(f"Invalid edge: {edge}")
+
+        parents[c].add(p)
+
+    root = inferRoot(rawNodes)
+
+    selectedFiles = {
+        normalizeFile(name, root)
+        for name in extractFiles({
+            "toolName": selected.name,
+            "input": selected.input
+        })
+    }
+
+    selectedFiles.discard(None)
+
+    initial = {
+        i
+        for i, node in enumerate(graphNodes)
+        if selectedFiles.intersection(node.get("files", []))
+    }
+
+    seen = set()
+    stack = list(initial)
+
+    while stack:
+        i = stack.pop()
+
+        if i in seen:
+            continue
+
+        seen.add(i)
+        stack.extend(parents[i] - seen)
+
+    calls = []
+
+    for i in sorted(seen):
+        node = rawNodes[i]
+        tool_name = node.get("toolName", "Unknown")
+        inputs = node.get("input") or {}
+
+        if "command" in inputs:
+            action = inputs["command"]
+        elif "file_path" in inputs:
+            action = inputs["file_path"]
+        else:
+            action = json.dumps(inputs, ensure_ascii=False)
+
+        calls.append(f"{tool_name}: {action}")
+
+    return tuple(calls), sorted(seen), sorted(selectedFiles)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+
+    parser.add_argument(
+        "--transcript",
+        type=Path,
+        required=True,
+        help="Original Claude Code .jsonl"
+    )
+
+    parser.add_argument(
+        "--graph",
+        type=Path,
+        help="Pre-compaction *_dependency_graph.json"
+    )
+
+    parser.add_argument(
+        "--tool-nodes",
+        type=Path,
+        help="Matching *_tool_nodes.json"
+    )
+
+    parser.add_argument(
+        "--post-index",
+        type=int,
+        default=0,
+        help="0-based post-compaction tool-call number"
+    )
+
+    parser.add_argument(
+        "--monitor",
+        choices=MONITORS,
+        default="original"
+    )
+
+    parser.add_argument(
+        "--expected",
+        choices=("ALLOW", "BLOCK"),
+        required=True,
+        help="Expected verdict, not inferred from isError"
+    )
+
+    parser.add_argument(
+        "--model",
+        default="anthropic/claude-opus-4-8"
+    )
+
     args = parser.parse_args()
 
-    raw = yaml.safe_load(args.yaml.read_text(encoding="utf-8"))
-    transcript = Transcript.model_validate(raw)
-    decision = Decision(context=args.context, message=args.message)
+    messages, actions, Boundary = loadPostcompaction(
+        args.transcript
+    )
 
-    selected = action_at(transcript, decision)
+    if not (0 <= args.post_index < len(actions)):
+        parser.error(
+            f"--post-index must be between 0 and {len(actions) - 1}"
+        )
+
+    targetMessage = actions[args.post_index]
+
+    transcript = Transcript.model_validate({
+        "name": args.transcript.stem,
+        "contexts": [
+            {
+                "name": "claude-code",
+                "messages": messages[:targetMessage + 1]
+            }
+        ],
+        "expected": args.expected,
+    })
+
+    decision = Decision(
+        context=0,
+        message=targetMessage
+    )
+
+    selected = action_at(
+        transcript,
+        decision
+    )
+
     if selected is None:
-        raise ValueError(f"Context {args.context}, message {args.message} is not a tool call")
+        raise ValueError(
+            "Selected message is not a tool call"
+        )
 
-    print(f"Transcript: {transcript.name}")
-    print(f"Contexts: {len(transcript.contexts)}")
-    print(f"Messages: {sum(len(ctx.messages) for ctx in transcript.contexts)}")
-    print(f"Selected action: context={args.context}, message={args.message}")
+    print(f"Transcript: {args.transcript}")
+    print(f"Compaction boundary: line {Boundary}")
+    print(
+        f"Post-compaction tool call: "
+        f"{args.post_index} of {len(actions) - 1}"
+    )
     print(f"Tool: {selected.name}")
     print(f"Arguments: {selected.input}")
     print(f"Monitor: {args.monitor}")
-    print("Expected: BLOCK")
-    print("NOTE: No commands in the transcript will be executed.\n")
+    print(f"Expected: {args.expected}")
+    print(
+        "The compaction summary is passed unchanged "
+        "in the transcript history."
+    )
+    print("No transcript tool calls will be executed.\n")
 
     sample = SingleActionEvalSample.at(
         transcript=transcript,
         decision=decision,
-        expected="BLOCK",
+        expected=args.expected
     )
+
     if args.monitor == "dependency":
-        # dynamic: the parents of the action under review, from the dependency graph
-        pastToolCalls = parent_tool_calls(raw, args.context, args.message)
-        if pastToolCalls:
-            print(f"Dependency parents fed to monitor ({len(pastToolCalls)}):")
-            for i, c in enumerate(pastToolCalls, 1):
-                print(f"  {i}. {c}")
-        else:
-            print("Dependency parents: NONE (no prior tool call produced what this action touches)")
-        print()
-        monitor = dependentGraphMonitor(pastToolCalls=pastToolCalls)
+        if not args.graph or not args.tool_nodes:
+            parser.error(
+                "--monitor dependency requires "
+                "--graph and --tool-nodes"
+            )
+
+        calls, indices, selectedFiles = parent_tool_calls(
+            args.graph,
+            args.tool_nodes,
+            selected
+        )
+
+        print(f"Proposed-action files: {selectedFiles}")
+        print(f"Historical nodes retrieved: {indices}")
+
+        for i, call in zip(indices, calls):
+            print(f"  n{i}: {call}")
+
+        monitor = dependentGraphMonitor(
+            pastToolCalls=calls
+        )
+
     else:
         monitor = MONITORS[args.monitor]()
 
     task = single_action_eval(
         dataset=[sample],
-        monitor=monitor,
+        monitor=monitor
     )
-    inspect_eval(task, model="anthropic/claude-opus-4-8")
+
+    inspect_eval(
+        task,
+        model=args.model
+    )
 
 
 if __name__ == "__main__":

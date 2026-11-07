@@ -109,6 +109,11 @@ def dependentGraphMonitor(
     pastToolCalls: tuple[str, ...] = (),
 ) -> AutoModeMonitor:
     monitor = monitor_original(model)
+    monitor = replace(
+    monitor,
+    s1=None,
+    apply_safe_tools=False
+    )
 
     return replace(
         monitor,

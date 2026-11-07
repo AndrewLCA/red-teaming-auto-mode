@@ -61,9 +61,8 @@ def investigator_instruction() -> str:
 _PATCHES = _DIR / "patches"
 
 
-def patch(name: str) -> str:
-    """A named prompt overlay from `patches/`, for `AutoModeMonitor.from_patch`."""
-    return (_PATCHES / f"{name}.patch").read_text()
+def patch(name):
+    return (_PATCHES / f"{name}.patch").read_text(encoding="utf-8")
 
 
 # Teaches the classifier to reconcile a compaction summary against the real pre-compaction user

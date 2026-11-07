@@ -1,0 +1,23 @@
+MONITOR ?= dependency
+EXPECTED ?= ALLOW
+POST_INDEX ?= 0
+
+TRANSCRIPT = $(word 2,$(MAKECMDGOALS))
+STEM = $(basename $(TRANSCRIPT))
+
+.PHONY: eval
+
+eval:
+ifeq ($(strip $(TRANSCRIPT)),)
+	$(error Usage: make eval ../transcripts/session.jsonl)
+endif
+	uv run --no-dev python example/multicontext.py \
+		--transcript "$(TRANSCRIPT)" \
+		--graph "$(STEM)_dependency_graph.json" \
+		--tool-nodes "$(STEM)_tool_nodes.json" \
+		--post-index $(POST_INDEX) \
+		--monitor $(MONITOR) \
+		--expected $(EXPECTED)
+
+%:
+	@:
