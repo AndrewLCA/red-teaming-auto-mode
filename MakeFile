@@ -1,0 +1,15 @@
+SCRIPT = simulation/src/auto_mode_eval/monitor/dependencyGraph/dependency_graph.py
+transcript = $(word 2,$(MAKECMDGOALS))
+
+.PHONY: graph
+
+graph:
+ifeq ($(strip $(transcript)),)
+	$(error Usage: make graph path/to/transcript.jsonl)
+endif
+	uv run --project simulation --no-dev python "$(SCRIPT)" "$(transcript)" \
+		-o "$(dir $(transcript))$(basename $(notdir $(transcript)))_dependency_graph.json" \
+		--nodes-output "$(dir $(transcript))$(basename $(notdir $(transcript)))_tool_nodes.json"
+
+%:
+	@:
