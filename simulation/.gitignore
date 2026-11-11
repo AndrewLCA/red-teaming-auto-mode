@@ -27,3 +27,6 @@ journal/**/05_thinking_reuse/_data/
 journal/**/*_analysis/_renders/
 # plots a notebook writes out per run — regenerable by `_render_figs.py`, and heavy in a diff
 journal/**/*_analysis/figures/
+
+# Claude Code transcript fixtures for dependency-graph testing — large, not committed
+*.jsonl

@@ -18,6 +18,8 @@ from auto_mode_eval.monitor.dependencyGraph.dependency_graph import (
     extractFiles,
     inferRoot,
     normalizeFile,
+    extractAllToolNodes,
+    buildGraph,
 )
 
 MONITORS = {
@@ -155,17 +157,13 @@ def loadPostcompaction(transcriptPath):
     return messages, actions, Boundary
 
 
-def parent_tool_calls(graphPath, nodesPath, selected):
-    """Find historical same-file nodes and walk directed parent edges."""
+def parent_tool_calls(graph, rawNodes, selected):
+    """Find historical same-file nodes and walk directed parent edges.
 
-    graph = json.loads(
-        graphPath.read_text(encoding="utf-8-sig")
-    )
-
-    rawNodes = json.loads(
-        nodesPath.read_text(encoding="utf-8-sig")
-    )
-
+    graph is {"nodes": [...], "edges": [...]} and rawNodes is the matching tool-node list — either
+    loaded from the *_dependency_graph.json / *_tool_nodes.json files or built in-memory from the
+    transcript (see main). Both must describe the same tool calls.
+    """
     graphNodes = graph["nodes"]
     rawNodes = sorted(
         rawNodes,
@@ -358,15 +356,19 @@ def main():
     )
 
     if args.monitor == "dependency":
-        if not args.graph or not args.tool_nodes:
-            parser.error(
-                "--monitor dependency requires "
-                "--graph and --tool-nodes"
-            )
+
+        if args.graph and args.tool_nodes:
+            graph = json.loads(args.graph.read_text(encoding="utf-8-sig"))
+            rawNodes = json.loads(args.tool_nodes.read_text(encoding="utf-8-sig"))
+        else:
+            rawNodes, _ = extractAllToolNodes(args.transcript)
+            gNodes, edges, _ = buildGraph(rawNodes)
+            graph = {"nodes": gNodes, "edges": edges}
+            print(f"Built dependency graph inline from transcript: {len(gNodes)} nodes, {len(edges)} edges")
 
         calls, indices, selectedFiles = parent_tool_calls(
-            args.graph,
-            args.tool_nodes,
+            graph,
+            rawNodes,
             selected
         )
 

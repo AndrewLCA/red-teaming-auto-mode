@@ -8,7 +8,67 @@ from collections import defaultdict
 from pathlib import Path
 
 
-def extractPrecompactionNodes(path):
+# --- OLD: pre-compaction only (kept for reference, superseded by extractAllToolNodes) ----------
+# def extractPrecompactionNodes(path):
+#     nodes = {}
+#     Boundary = None
+#
+#     with open(path, "r", encoding="utf-8-sig") as f:
+#         for lineNum, line in enumerate(f, 1):
+#             if not line.strip():
+#                 continue
+#
+#             record = json.loads(line)
+#             if record.get("type") == "system" and record.get("subtype") == "compact_boundary":
+#                 Boundary = lineNum
+#                 break
+#
+#             recordType = record.get("type")
+#             if recordType not in ("assistant", "user"):
+#                 continue
+#
+#             message = record.get("message") or {}
+#             content = message.get("content", [])
+#             if not isinstance(content, list):
+#                 continue
+#
+#             for block in content:
+#                 if not isinstance(block, dict):
+#                     continue
+#
+#                 if recordType == "assistant" and block.get("type") == "tool_use":
+#                     toolId = block.get("id")
+#                     if not toolId or toolId in nodes:
+#                         continue
+#
+#                     nodes[toolId] = {
+#                         "id": toolId,
+#                         "toolName": block.get("name"),
+#                         "input": block.get("input", {}),
+#                         "output": None,
+#                         "sequence": len(nodes) + 1,
+#                         "timestamp": record.get("timestamp"),
+#                         "callLine": lineNum,
+#                         "resultLine": None,
+#                     }
+#
+#                 elif recordType == "user" and block.get("type") == "tool_result":
+#                     toolId = block.get("tool_use_id")
+#                     if toolId not in nodes:
+#                         continue
+#                     node = nodes[toolId]
+#                     if node["resultLine"] is None:
+#                         node["output"] = block.get("content")
+#                         node["resultLine"] = lineNum
+#                         node["isError"] = block.get("is_error", False)
+#
+#     if Boundary is None:
+#         raise ValueError("No compaction boundary found in transcript")
+#
+#     return list(nodes.values()), Boundary
+
+
+def extractAllToolNodes(path):
     nodes = {}
     Boundary = None
 
@@ -20,7 +80,7 @@ def extractPrecompactionNodes(path):
             record = json.loads(line)
             if record.get("type") == "system" and record.get("subtype") == "compact_boundary":
                 Boundary = lineNum
-                break
+                continue  # record the boundary but keep collecting ALL tool calls (pre- and post-compaction)
 
             recordType = record.get("type")
             if recordType not in ("assistant", "user"):
@@ -60,9 +120,6 @@ def extractPrecompactionNodes(path):
                         node["output"] = block.get("content")
                         node["resultLine"] = lineNum
                         node["isError"] = block.get("is_error", False)
-
-    if Boundary is None:
-        raise ValueError("No compaction boundary found in transcript")
 
     return list(nodes.values()), Boundary
 
@@ -192,13 +249,13 @@ def components(nodes, edges):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Extract pre-compaction tool calls and build a shared-file dependency graph")
+    parser = argparse.ArgumentParser(description="Extract all tool calls and build a shared-file dependency graph")
     parser.add_argument("transcript", type=Path, help="Original Claude Code .jsonl transcript")
     parser.add_argument("-o", "--output", type=Path, default=Path("dependency_graph.json"))
     parser.add_argument("--nodes-output", type=Path, help="Optionally save complete extracted tool nodes")
     args = parser.parse_args()
 
-    rawNodes, Boundary = extractPrecompactionNodes(args.transcript)
+    rawNodes, Boundary = extractAllToolNodes(args.transcript)
     nodes, edges, root = buildGraph(rawNodes)
     groups = components(nodes, edges)
 
@@ -210,8 +267,8 @@ def main():
         args.nodes_output.write_text(json.dumps(rawNodes, indent=2, ensure_ascii=False), encoding="utf-8")
 
     matched = sum(1 for node in rawNodes if node["resultLine"] is not None)
-    print(f"Compaction boundary: line {Boundary}")
-    print(f"Unique pre-compaction tool calls: {len(rawNodes)}")
+    print(f"Compaction boundary: line {Boundary if Boundary is not None else '(none)'}")
+    print(f"Unique tool calls (all): {len(rawNodes)}")
     print(f"Matched tool results: {matched}")
     print(f"Unmatched tool calls: {len(rawNodes) - matched}")
     print(f"Path root: {root or '(none inferred)'}")
