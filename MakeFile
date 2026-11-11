@@ -10,6 +10,6 @@ endif
 	uv run --project simulation --no-dev python "$(SCRIPT)" "$(transcript)" \
 		-o "$(dir $(transcript))$(basename $(notdir $(transcript)))_dependency_graph.json" \
 		--nodes-output "$(dir $(transcript))$(basename $(notdir $(transcript)))_tool_nodes.json"
-
+		
 %:
 	@:
