@@ -135,20 +135,41 @@ def normalizeFile(name, root=None):
     return None if name in ("", ".") else name.lower()
 
 
+# def inferRoot(nodes):
+#     paths = []
+#     for node in nodes:
+#         inputs = node.get("input") or {}
+#         p = inputs.get("file_path")
+#         if isinstance(p, str) and re.match(r"^[A-Za-z]:[\\/]", p):
+#             paths.append(ntpath.dirname(p))
+#     if not paths:
+#         return None
+#     try:
+#         return ntpath.commonpath(paths).replace("\\", "/")
+#     except ValueError:
+#         return None
 def inferRoot(nodes):
-    paths = []
+    winDirs, posixDirs = [], []
     for node in nodes:
-        inputs = node.get("input") or {}
-        p = inputs.get("file_path")
-        if isinstance(p, str) and re.match(r"^[A-Za-z]:[\\/]", p):
-            paths.append(ntpath.dirname(p))
-    if not paths:
-        return None
-    try:
-        return ntpath.commonpath(paths).replace("\\", "/")
-    except ValueError:
-        return None
-
+        for name in extractFiles(node):
+            if not isinstance(name, str):
+                continue
+            s = name.strip().strip('"\'').lstrip("@").replace("\\", "/")
+            if re.match(r"^[A-Za-z]:/", s):
+                winDirs.append(posixpath.dirname(s))
+            elif s.startswith("/"):
+                posixDirs.append(posixpath.dirname(s))
+    for dirs in (posixDirs, winDirs):
+        dirs = [d for d in dirs if d and d != "/"]
+        if not dirs:
+            continue
+        try:
+            root = posixpath.commonpath(dirs)
+        except ValueError:
+            continue
+        if root and root != "/":
+            return root
+    return None
 
 def extractBashFiles(command):
     if not isinstance(command, str):
@@ -174,10 +195,13 @@ def extractBashFiles(command):
                 continue
             if token in ("/dev/null", ".", "..") or "$" in token:
                 continue
+            if re.match(r"^\d*[<>]", token):      # shell redirection: 2>/dev/null, >out.txt
+                continue
+            if re.search(r"\s", token):           # multi-word junk: printf '\nSecond line\n'
+                continue
             if re.search(r"\.[A-Za-z][A-Za-z0-9]*$", token) or "/" in token or "\\" in token:
                 files.append(token)
     return list(dict.fromkeys(files))
-
 
 def extractFiles(node):
     tool = node.get("toolName", node.get("tool_name"))
