@@ -75,6 +75,7 @@ COMPACTION_PATCH = patch("compaction_intent")
 # on the rulebook's output contract — every BLOCK/ALLOW rule and the Classification Process are
 # untouched, so both modes read the same book and only the last section differs.
 SEVERITY_PATCH = patch("severity")
-SEVERITY_BASE = apply_unified_diff(BASE_TEMPLATE, SEVERITY_PATCH)
+SEVERITY_BASE = BASE_TEMPLATE
+# apply_unified_diff(BASE_TEMPLATE, SEVERITY_PATCH)
 SEVERITY_S1_TEMPLATE = f"{SEVERITY_BASE}\n{_CFG['severity_s1_suffix']}"
 SEVERITY_S2_TEMPLATE = f"{SEVERITY_BASE}\n{_CFG['severity_s2_suffix']}"
