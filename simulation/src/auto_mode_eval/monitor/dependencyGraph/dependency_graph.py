@@ -86,6 +86,7 @@ def extractAllToolNodes(path):
             if recordType not in ("assistant", "user"):
                 continue
 
+            cwd = record.get("cwd")  # working directory for this record (used to canonicalize paths)
             message = record.get("message") or {}
             content = message.get("content", [])
             if not isinstance(content, list):
@@ -107,6 +108,7 @@ def extractAllToolNodes(path):
                         "output": None,
                         "sequence": len(nodes) + 1,
                         "timestamp": record.get("timestamp"),
+                        "cwd": cwd,
                         "callLine": lineNum,
                         "resultLine": None,
                     }
@@ -220,17 +222,68 @@ def extractFiles(node):
     return files
 
 
+# ---- cwd-aware canonical path resolution (fixes abs/rel/subfolder/cd spelling mismatches) ----
+def _clean(name):
+    s = str(name).strip().strip('"\'').lstrip("@").replace("\\", "/").removeprefix("./")
+    if not s or "://" in s or s.startswith("-"):
+        return None
+    # git-bash / MSYS drive form: /c/Users/... -> c:/Users/... (same place, Windows spelling)
+    m = re.match(r"^/([A-Za-z])/", s)
+    if m:
+        s = m.group(1) + ":/" + s[3:]
+    return s
+
+
+def _isAbs(s):
+    return s.startswith("/") or bool(re.match(r"^[A-Za-z]:/", s))
+
+
+def resolveWithCwd(name, cwd):
+    s = _clean(name)
+    if s is None:
+        return None
+    if cwd and not _isAbs(s):
+        c = _clean(cwd) or ""
+        if c:
+            s = f"{c.rstrip('/')}/{s}"
+    s = posixpath.normpath(s)
+    return None if s in ("", ".") else s.lower()
+
+
+def _commonRoot(paths):
+    dirs = [posixpath.dirname(p) for p in paths if _isAbs(p)]
+    dirs = [d for d in dirs if d and d != "/"]
+    if not dirs:
+        return None
+    try:
+        root = posixpath.commonpath(dirs)
+    except ValueError:
+        return None
+    return root if root and root != "/" else None
+
+
 def buildGraph(rawNodes):
-    root = inferRoot(rawNodes)
-    nodes = []
-
-    for raw in sorted(rawNodes, key=lambda n: n.get("sequence", 0)):
-        files = []
+    ordered = sorted(rawNodes, key=lambda n: n.get("sequence", 0))
+    hasCwd = any(n.get("cwd") for n in ordered)
+    perNode = []
+    fallbackRoot = None if hasCwd else inferRoot(rawNodes)
+    for raw in ordered:
+        cwd = raw.get("cwd")
+        keys = []
         for name in extractFiles(raw):
-            normalized = normalizeFile(name, root)
-            if normalized and normalized not in files:
-                files.append(normalized)
+            key = resolveWithCwd(name, cwd) if hasCwd else normalizeFile(name, fallbackRoot)
+            if key and key not in keys:
+                keys.append(key)
+        perNode.append(keys)
+    root = _commonRoot([k for keys in perNode for k in keys]) if hasCwd else fallbackRoot
 
+    nodes = []
+    for raw, keys in zip(ordered, perNode):
+        files = []
+        for k in keys:
+            disp = k[len(root) + 1:] if (root and k.startswith(root + "/")) else k
+            if disp and disp not in files:
+                files.append(disp)
         nodes.append({
             "index": len(nodes),
             "toolName": raw.get("toolName", raw.get("tool_name")),
@@ -311,6 +364,21 @@ def main():
     print("\nEDGES:")
     for edge in edges:
         print(f"  n{edge['parent']} -> n{edge['child']} via {edge['file']}")
+
+    # Edges that span the compaction boundary: parent recorded before it, child after.
+    # These are the provenance links that survive compaction -- the point of the defense.
+    if Boundary is not None:
+        orderedRaw = sorted(rawNodes, key=lambda n: n.get("sequence", 0))
+        crossing = []
+        for edge in edges:
+            pl = orderedRaw[edge["parent"]].get("callLine")
+            cl = orderedRaw[edge["child"]].get("callLine")
+            if pl is not None and cl is not None and pl < Boundary < cl:
+                crossing.append((edge["parent"], pl, edge["child"], cl, edge["file"]))
+        print(f"\nEdges crossing the compaction boundary (line {Boundary}): {len(crossing)}")
+        for pp, pl, cc, cl, ff in crossing:
+            print(f"  n{pp}(line {pl}, pre) -> n{cc}(line {cl}, post)  via {ff}")
+
     print(f"\nWrote {args.output}")
     if args.nodes_output:
         print(f"Wrote {args.nodes_output}")

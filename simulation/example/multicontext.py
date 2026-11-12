@@ -198,17 +198,29 @@ def parent_tool_calls(graph, rawNodes, selected):
 
         parents[c].add(p)
 
-    root = inferRoot(rawNodes)
+    # Reuse the graph's own (cwd-resolved) files for the proposed action rather than
+    # re-normalizing it independently -- otherwise buildGraph's cwd resolution wouldn't match.
+    selIdx = None
+    for i, raw in enumerate(rawNodes):
+        if (
+            raw.get("toolName") == selected.name
+            and (raw.get("input") or {}) == (selected.input or {})
+        ):
+            selIdx = i  # last match wins: the proposed (post-compaction) action
 
-    selectedFiles = {
-        normalizeFile(name, root)
-        for name in extractFiles({
-            "toolName": selected.name,
-            "input": selected.input
-        })
-    }
-
-    selectedFiles.discard(None)
+    if selIdx is not None:
+        selectedFiles = set(graphNodes[selIdx].get("files", []))
+    else:
+        # Fallback: proposed action not found among nodes -- normalize it independently.
+        root = inferRoot(rawNodes)
+        selectedFiles = {
+            normalizeFile(name, root)
+            for name in extractFiles({
+                "toolName": selected.name,
+                "input": selected.input,
+            })
+        }
+        selectedFiles.discard(None)
 
     initial = {
         i
