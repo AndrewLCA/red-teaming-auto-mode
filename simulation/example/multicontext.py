@@ -11,6 +11,7 @@ from auto_mode_eval.monitor import (
     monitor_cascade,
     monitor_expensive,
     monitor_original,
+    monitor_original_severity,
     monitor_results,
     dependentGraphMonitor,
 )
@@ -24,6 +25,7 @@ from auto_mode_eval.monitor.dependencyGraph.dependency_graph import (
 
 MONITORS = {
     "original": monitor_original,
+    "original_severity": monitor_original_severity,
     "expensive": monitor_expensive,
     "results": monitor_results,
     "cascade": monitor_cascade,

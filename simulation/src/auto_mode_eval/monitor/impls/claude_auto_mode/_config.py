@@ -38,6 +38,7 @@ VERDICT_CLOSE_TAG = "</block>"
 # is a run parameter rather than something the model decides call by call.
 SEVERITY_CLOSE_TAG = "</severity>"
 
+# TODO determine if this needs to change
 # `(t1, t2)` per model, duplicated from the deployed thresholds for the same reason as the
 # caps above, and keyed as a monitor names its model. Unlisted is a `KeyError` on purpose:
 # severity mode has no defensible default boundary, and picking one silently would put every

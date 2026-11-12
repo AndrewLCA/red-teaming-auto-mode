@@ -108,12 +108,7 @@ def dependentGraphMonitor(
     model: str | Model = _MODEL,
     pastToolCalls: tuple[str, ...] = (),
 ) -> AutoModeMonitor:
-    monitor = monitor_original(model)
-    monitor = replace(
-    monitor,
-    s1=None,
-    apply_safe_tools=False
-    )
+    monitor = monitor_original_severity(model)
 
     return replace(
         monitor,
