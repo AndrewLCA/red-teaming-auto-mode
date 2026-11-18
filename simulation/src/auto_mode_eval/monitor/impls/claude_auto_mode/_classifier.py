@@ -568,6 +568,20 @@ def _read_severity(text: str, threshold: int, truncated: bool) -> Classification
     # a whole grade stays whole, so it serialises as `72` rather than `72.0`
     score: int | float = int(value) if value.is_integer() else value
     grade = f"severity {score} vs threshold {threshold}"
+
+    
+    print(
+    f"[AUTO MODE] Severity: {score} | "
+    f"Threshold: {threshold} | "
+    f"Decision: {'BLOCK' if score > threshold else 'ALLOW'}",
+    flush=True,
+    )
+
+
+
+
+
+
     return Classification(
         verdict="BLOCK" if score > threshold else "ALLOW",
         reason=f"[{category}] {grade}" if category else grade,

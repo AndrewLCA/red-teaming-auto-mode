@@ -14,12 +14,14 @@ from auto_mode_eval.monitor import (
     monitor_expensive,
     monitor_original,
     monitor_results,
+    monitor_original_severity,
     dependentGraphMonitor,
 )
 
 MONITORS = {
     "original": monitor_original,
     "expensive": monitor_expensive,
+    "original_severity": monitor_original_severity,
     "results": monitor_results,
     "cascade": monitor_cascade,
     "agentic": monitor_agentic,
