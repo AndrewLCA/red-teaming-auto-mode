@@ -173,12 +173,50 @@ def inferRoot(nodes):
             return root
     return None
 
+def _splitCommands(command):
+    """Split a shell command line on &&, ||, ; and | -- but NOT inside quotes.
+    (A plain regex split would break `echo "a && b"`.)"""
+    parts, buf = [], []
+    i, n, quote = 0, len(command), None
+    while i < n:
+        ch = command[i]
+        if quote:
+            if quote == '"' and ch == "\\" and i + 1 < n:   # keep an escaped char inside dquotes
+                buf.append(ch); buf.append(command[i + 1]); i += 2; continue
+            buf.append(ch)
+            if ch == quote:
+                quote = None
+            i += 1
+            continue
+        if ch in ("'", '"'):
+            quote = ch; buf.append(ch); i += 1; continue
+        if command[i:i + 2] in ("&&", "||"):
+            parts.append("".join(buf)); buf = []; i += 2; continue
+        if ch in (";", "|"):
+            parts.append("".join(buf)); buf = []; i += 1; continue
+        buf.append(ch); i += 1
+    parts.append("".join(buf))
+    return [p.strip() for p in parts if p.strip()]
+
+
+def _applyCd(curDir, target):
+    """New working directory (relative to the node cwd) after `cd target`."""
+    t = _clean(target)
+    if t is None:
+        return curDir
+    if _isAbs(t):
+        return t
+    r = posixpath.normpath(posixpath.join(curDir, t) if curDir else t)
+    return "" if r == "." else r
+
+
 def extractBashFiles(command):
     if not isinstance(command, str):
         return []
     command = re.split(r"<<\s*['\"]?\w+", command, maxsplit=1)[0]
-    parts = re.split(r"\s*(?:&&|\|\||[;|])\s*", command)
+    parts = _splitCommands(command)
     files = []
+    curDir = ""  # dir relative to the node cwd, updated by `cd` between &&/;/| sub-commands
 
     for part in parts:
         try:
@@ -187,6 +225,12 @@ def extractBashFiles(command):
             tokens = part.split()
         if not tokens:
             continue
+
+        # Track `cd` so files in later sub-commands resolve against the right directory.
+        if tokens[0] == "cd" and len(tokens) >= 2:
+            curDir = _applyCd(curDir, tokens[1])
+            continue
+
         for i, token in enumerate(tokens[1:], start=1):
             if tokens[i - 1] in ("-c", "-m", "-E", "-e"):
                 continue
@@ -195,14 +239,19 @@ def extractBashFiles(command):
             token = token.lstrip("@").strip(",;()")
             if not token or token.startswith("-") or "://" in token:
                 continue
-            if token in ("/dev/null", ".", "..") or "$" in token:
-                continue
-            if re.match(r"^\d*[<>]", token):      # shell redirection: 2>/dev/null, >out.txt
-                continue
-            if re.search(r"\s", token):           # multi-word junk: printf '\nSecond line\n'
-                continue
-            if re.search(r"\.[A-Za-z][A-Za-z0-9]*$", token) or "/" in token or "\\" in token:
-                files.append(token)
+            # A token can glue a redirection operator to a file: >out.txt, a.txt>b.txt, 2>err.log.
+            # Split on any redirection operator and treat each side as a candidate file.
+            segments = re.split(r"[0-9&]*[<>]+[&0-9]*", token) if re.search(r"[<>]", token) else [token]
+            for seg in segments:
+                if not seg or seg in ("/dev/null", ".", "..") or "$" in seg:
+                    continue
+                if re.search(r"\s", seg):           # multi-word junk: printf '\nSecond line\n'
+                    continue
+                if re.search(r"\.[A-Za-z][A-Za-z0-9]*$", seg) or "/" in seg or "\\" in seg:
+                    # Prepend the cd'd directory for RELATIVE files so they resolve correctly.
+                    if curDir and not _isAbs(_clean(seg) or ""):
+                        seg = posixpath.normpath(posixpath.join(curDir, seg))
+                    files.append(seg)
     return list(dict.fromkeys(files))
 
 def extractFiles(node):
