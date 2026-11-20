@@ -86,7 +86,7 @@ def extractAllToolNodes(path):
             if recordType not in ("assistant", "user"):
                 continue
 
-            cwd = record.get("cwd")  # working directory for this record (used to canonicalize paths)
+            cwd = record.get("cwd")  
             message = record.get("message") or {}
             content = message.get("content", [])
             if not isinstance(content, list):
@@ -181,7 +181,7 @@ def _splitCommands(command):
     while i < n:
         ch = command[i]
         if quote:
-            if quote == '"' and ch == "\\" and i + 1 < n:   # keep an escaped char inside dquotes
+            if quote == '"' and ch == "\\" and i + 1 < n:  
                 buf.append(ch); buf.append(command[i + 1]); i += 2; continue
             buf.append(ch)
             if ch == quote:
@@ -210,6 +210,10 @@ def _applyCd(curDir, target):
     return "" if r == "." else r
 
 
+# Commands whose positional arguments are filesystem paths 
+_FS_COMMANDS = {"cp", "mv", "rm", "rmdir", "mkdir", "touch", "ln", "unlink", "rsync", "cat", "tee"}
+
+
 def extractBashFiles(command):
     if not isinstance(command, str):
         return []
@@ -231,6 +235,8 @@ def extractBashFiles(command):
             curDir = _applyCd(curDir, tokens[1])
             continue
 
+        isFs = posixpath.basename(tokens[0]).lower() in _FS_COMMANDS
+
         for i, token in enumerate(tokens[1:], start=1):
             if tokens[i - 1] in ("-c", "-m", "-E", "-e"):
                 continue
@@ -247,7 +253,7 @@ def extractBashFiles(command):
                     continue
                 if re.search(r"\s", seg):           # multi-word junk: printf '\nSecond line\n'
                     continue
-                if re.search(r"\.[A-Za-z][A-Za-z0-9]*$", seg) or "/" in seg or "\\" in seg:
+                if isFs or re.search(r"\.[A-Za-z][A-Za-z0-9]*$", seg) or "/" in seg or "\\" in seg:
                     # Prepend the cd'd directory for RELATIVE files so they resolve correctly.
                     if curDir and not _isAbs(_clean(seg) or ""):
                         seg = posixpath.normpath(posixpath.join(curDir, seg))
@@ -276,7 +282,6 @@ def _clean(name):
     s = str(name).strip().strip('"\'').lstrip("@").replace("\\", "/").removeprefix("./")
     if not s or "://" in s or s.startswith("-"):
         return None
-    # git-bash / MSYS drive form: /c/Users/... -> c:/Users/... (same place, Windows spelling)
     m = re.match(r"^/([A-Za-z])/", s)
     if m:
         s = m.group(1) + ":/" + s[3:]
