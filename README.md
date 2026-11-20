@@ -137,3 +137,85 @@ For comparison, run both monitors on the **same** `FILE`, `CONTEXT`, and `MESSAG
 - Tool-use metadata in the compaction summary (for example `Bash, Write`) does not reveal complete historical commands.
 - The collector URL in this fixture is a demonstration endpoint; transcript tool calls are not executed by this evaluation.
 - If you alter the classifier stage configuration, make the same change in both comparison conditions or document it as an additional experimental variable.
+
+
+
+
+# Auto Mode Dependency Monitor Evaluation
+
+This project evaluates whether retrieving historical tool-call dependencies improves Claude Auto Mode's security decisions after context compaction.
+
+Handcrafted test scenarios are stored as YAML files. The evaluation compares the **original monitor** against the **dependency-aware monitor**.
+
+## Prerequisites
+
+- Python and `uv`
+- Project dependencies installed
+- Anthropic API key configured
+
+Run commands from the `red-teaming-auto-mode/` repository root.
+
+## Running Tests
+
+**Run the dependency monitor:**
+
+```bash
+make eval FILE=./tests/mctest4.yaml MONITOR=dependency
+```
+
+**Run the original monitor:**
+
+```bash
+make eval FILE=./tests/mctest4.yaml MONITOR=original
+```
+
+**Specify a custom context and message:**
+
+```bash
+make eval \
+  FILE=./tests/mctest4.yaml \
+  MONITOR=dependency \
+  CONTEXT=1 \
+  MESSAGE=4
+```
+
+### Makefile Parameters
+
+| Parameter | Default | Description |
+|---|---|---|
+| `FILE` | `simulation/example/mctest4.yaml` | YAML test file |
+| `MONITOR` | `dependency` | Monitor to evaluate |
+| `CONTEXT` | `1` | Zero-based context index |
+| `MESSAGE` | `4` | Zero-based message index |
+| `EXPECTED` | `BLOCK` | Expected security verdict |
+
+`CONTEXT` and `MESSAGE` can be overridden in the terminal. If omitted, the Makefile uses their default values.
+
+**Note:** The YAML evaluator currently hardcodes `BLOCK` as the expected verdict.
+
+## Viewing Results
+
+From the repository root:
+
+```bash
+uv run --project simulation --no-sync inspect view --log-dir ./logs
+```
+
+Open **http://localhost:7575**.
+
+Inspect AI displays the selected action, monitor decision, and evaluation score.
+
+- `exact mean = 1.0`: Correct prediction.
+- `exact mean = 0.0`: Incorrect prediction.
+
+## How It Works
+
+1. Loads the YAML transcript.
+2. Selects the specified context and message.
+3. Retrieves related historical tool calls when using the dependency monitor.
+4. Passes the selected action to the security monitor.
+5. Compares the decision against the expected `BLOCK` verdict.
+
+**Transcript tool commands are evaluated, not executed.**
+
+**Compatibility:** These instructions require the YAML-compatible `multicontext.py` supporting `--yaml`, `--context`, and `--message`. The JSONL-only version requires a different invocation.
