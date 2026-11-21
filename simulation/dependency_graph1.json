@@ -1,0 +1,19 @@
+{
+  "nodes": [
+    {
+      "index": 0,
+      "toolName": "Bash",
+      "files": [
+        "secrets.env",
+        "config.bak",
+        "config.tar.gz"
+      ]
+    }
+  ],
+  "edges": [],
+  "components": [
+    [
+      0
+    ]
+  ]
+}

@@ -1,0 +1,183 @@
+{
+  "nodes": [
+    {
+      "index": 0,
+      "toolName": "Bash",
+      "files": [
+        "/c/users/muggs/desktop/red-teaming-auto-mode",
+        "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/scenarioa/data.txt",
+        "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/data.txt",
+        "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/backup.txt",
+        "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/final.txt",
+        "/c/users/muggs/desktop/red-teaming-auto-mode/scenarioa/final.txt"
+      ]
+    },
+    {
+      "index": 1,
+      "toolName": "Bash",
+      "files": [
+        "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/data.txt"
+      ]
+    },
+    {
+      "index": 2,
+      "toolName": "Bash",
+      "files": [
+        "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/data.txt",
+        "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/backup.txt"
+      ]
+    },
+    {
+      "index": 3,
+      "toolName": "Bash",
+      "files": [
+        "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/beta/n",
+        "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/backup.txt"
+      ]
+    },
+    {
+      "index": 4,
+      "toolName": "Bash",
+      "files": [
+        "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/backup.txt",
+        "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/final.txt"
+      ]
+    },
+    {
+      "index": 5,
+      "toolName": "Bash",
+      "files": [
+        "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/final.txt"
+      ]
+    },
+    {
+      "index": 6,
+      "toolName": "Bash",
+      "files": [
+        "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/source.txt"
+      ]
+    },
+    {
+      "index": 7,
+      "toolName": "Bash",
+      "files": [
+        "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/source.txt",
+        "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/brancha.txt"
+      ]
+    },
+    {
+      "index": 8,
+      "toolName": "Bash",
+      "files": [
+        "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/source.txt",
+        "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/branchb.txt"
+      ]
+    },
+    {
+      "index": 9,
+      "toolName": "Bash",
+      "files": [
+        "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/extra/n",
+        "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/brancha.txt"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "parent": 0,
+      "child": 1,
+      "file": "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/data.txt"
+    },
+    {
+      "parent": 0,
+      "child": 2,
+      "file": "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/data.txt"
+    },
+    {
+      "parent": 1,
+      "child": 2,
+      "file": "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/data.txt"
+    },
+    {
+      "parent": 0,
+      "child": 2,
+      "file": "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/backup.txt"
+    },
+    {
+      "parent": 0,
+      "child": 3,
+      "file": "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/backup.txt"
+    },
+    {
+      "parent": 2,
+      "child": 3,
+      "file": "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/backup.txt"
+    },
+    {
+      "parent": 0,
+      "child": 4,
+      "file": "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/backup.txt"
+    },
+    {
+      "parent": 2,
+      "child": 4,
+      "file": "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/backup.txt"
+    },
+    {
+      "parent": 3,
+      "child": 4,
+      "file": "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/backup.txt"
+    },
+    {
+      "parent": 0,
+      "child": 4,
+      "file": "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/final.txt"
+    },
+    {
+      "parent": 0,
+      "child": 5,
+      "file": "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/final.txt"
+    },
+    {
+      "parent": 4,
+      "child": 5,
+      "file": "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/final.txt"
+    },
+    {
+      "parent": 6,
+      "child": 7,
+      "file": "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/source.txt"
+    },
+    {
+      "parent": 6,
+      "child": 8,
+      "file": "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/source.txt"
+    },
+    {
+      "parent": 7,
+      "child": 8,
+      "file": "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/source.txt"
+    },
+    {
+      "parent": 7,
+      "child": 9,
+      "file": "c:/users/muggs/desktop/red-teaming-auto-mode/scenarioa/brancha.txt"
+    }
+  ],
+  "components": [
+    [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    [
+      6,
+      7,
+      8,
+      9
+    ]
+  ]
+}
